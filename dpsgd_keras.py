@@ -127,11 +127,13 @@ def make_fixed_keras_optimizer_class(cls):
             microbatch_losses = tf.reduce_mean(
               tf.reshape(loss, [self._num_microbatches, -1]), axis=1)
       var_list = tf.nest.flatten(var_list)
-
+      
       # Compute the per-microbatch losses using helpful jacobian method.
       with tf.keras.backend.name_scope(self._name + '/gradients'):
         #tf.print(microbatch_losses.shape)
         jacobian = tape.jacobian(microbatch_losses, var_list)
+        # the size of microbatch_losses is [num_microbatches, batch_size/num_microbatches]
+        # the size of resulting jacobian will be [num_microbatches, batch_size/num_microbatches, num_parameters].
         #print("unstack:", tf.unstack(microbatch_losses))
         #t = [tape.gradient(one_loss, var_list) for one_loss in tf.unstack(microbatch_losses)]
         #print("t:", t)

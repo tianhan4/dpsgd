@@ -17,7 +17,7 @@ from tensorflow_privacy.privacy.analysis.rdp_accountant import compute_rdp
 from tensorflow_privacy.privacy.analysis.rdp_accountant import get_privacy_spent
 from tensorflow_privacy.privacy.optimizers.dp_optimizer_keras import DPKerasSGDOptimizer
 
-tf.config.threading.set_intra_op_parallelism_threads(3)
+tf.config.threading.set_intra_op_parallelism_threads(1)
 
 def random_choice_cond(x, size):
     tensor_size = tf.size(x)
@@ -88,6 +88,7 @@ def make_fixed_keras_optimizer_class(cls):
       self._microbatch_size = microbatch_size
       self.samples_cond = {}
 
+    @tf.function
     def _compute_gradients(self, loss, var_list, grad_loss=None, tape=None):
       """DP version of superclass method."""
       print("compute the gradient")
@@ -117,12 +118,21 @@ def make_fixed_keras_optimizer_class(cls):
       with tf.keras.backend.name_scope(self._name + '/gradients'):
         #tf.print(microbatch_losses.shape)
         jacobian = tape.jacobian(loss, var_list)
-        # print(jacobian)
+        tf.print("jacobian shape:", len(jacobian), jacobian[0].shape)
+        
+        # map_fn also supports functions with multi-arity inputs and outputs:
+
+        # If elems is a tuple (or nested structure) of tensors, then those tensors must all have the same outer-dimension size (num_elems); and fn is used to transform each tuple (or structure) of corresponding slices from elems. E.g., if elems is a tuple (t1, t2, t3), then fn is used to transform each tuple of slices (t1[i], t2[i], t3[i]) (where 0 <= i < num_elems).
+
+        # If fn returns a tuple (or nested structure) of tensors, then the result is formed by stacking corresponding elements from those structures.
         # Clip gradients to given l2_norm_clip.
         def clip_gradients(g):
+          # print the dimension of g
+          # tf.print("g shape:", len(g), g[0].shape)
           #tf.print("g:", g)
           #tf.print(tf.linalg.global_norm(g))
           considered_g = [g[i] for i in range(len(g)) if self.is_considered[i]]
+          # calculate the global norm of consider_g
           div_scale = tf.linalg.global_norm(considered_g)/self._l2_norm_clip
           if div_scale > 1:
             return [grad/div_scale for grad in g]
@@ -130,10 +140,10 @@ def make_fixed_keras_optimizer_class(cls):
             return g
 
         clipped_gradients = tf.map_fn(clip_gradients, jacobian)
-        print("clipped_gradients:", clipped_gradients)
+        # print("clipped_gradients:", clipped_gradients)
         
         final_gradients = [tf.reduce_sum(clipped_gradients[i], axis=0) for i in range(len(clipped_gradients))]
-        print(final_gradients)
+        # print(final_gradients)
         
         #self.clipped_gradients = clipped_gradients
         #self.final_gradients = final_gradients
