@@ -13,11 +13,11 @@ from absl import logging
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_privacy.privacy.analysis.rdp_accountant import compute_rdp
-from tensorflow_privacy.privacy.analysis.rdp_accountant import get_privacy_spent
-from tensorflow_privacy.privacy.optimizers.dp_optimizer_keras import DPKerasSGDOptimizer
+from rdp_accountant import compute_rdp
+from rdp_accountant import get_privacy_spent
+from tensorflow_privacy.privacy.optimizers import dp_optimizer_keras
 
-tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(3)
 
 def random_choice_cond(x, size):
     tensor_size = tf.size(x)
@@ -88,13 +88,12 @@ def make_fixed_keras_optimizer_class(cls):
       self._microbatch_size = microbatch_size
       self.samples_cond = {}
 
-    @tf.function
     def _compute_gradients(self, loss, var_list, grad_loss=None, tape=None):
       """DP version of superclass method."""
-      print("compute the gradient")
+      # print("compute the gradient")
       is_considered = [x.name.startswith("Considered") for x in var_list]
     
-      print(is_considered)
+      #print(is_considered)
       self._was_dp_gradients_called = True
       # Precompute the noise locations
       if len(self.samples_cond) == 0:
@@ -118,7 +117,7 @@ def make_fixed_keras_optimizer_class(cls):
       with tf.keras.backend.name_scope(self._name + '/gradients'):
         #tf.print(microbatch_losses.shape)
         jacobian = tape.jacobian(loss, var_list)
-        tf.print("jacobian shape:", len(jacobian), jacobian[0].shape)
+        #tf.print("jacobian shape:", len(jacobian), jacobian[0].shape)
         
         # map_fn also supports functions with multi-arity inputs and outputs:
 
@@ -192,7 +191,7 @@ def make_fixed_keras_optimizer_class(cls):
                    self).apply_gradients(grads_and_vars, global_step, name)
   return FixedDPOptimizerClass
 
-FixedDPKerasSGDOptimizer = make_fixed_keras_optimizer_class(tf.keras.optimizers.SGD)
+FixedDPKerasSGDOptimizer = make_fixed_keras_optimizer_class(tf.keras.optimizers.legacy.SGD)
 
 def compute_epsilon(steps, sampling_probability, noise_multiplier):
   """Computes epsilon value for given hyperparameters."""
